@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USB Shortcut Virus — проверь флешки</title>
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --panel: #121a2f;
+    --panel-2: #1a2340;
+    --line: #2a3556;
+    --text: #e6edf7;
+    --muted: #8a94ab;
+    --accent: #38bdf8;
+    --danger: #f43f5e;
+    --success: #22c55e;
+    --warn: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(56,189,248,.12), transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, rgba(236,72,153,.10), transparent 60%),
+      var(--bg);
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 20px 24px 12px; flex-wrap: wrap;
+  }
+  .topbar h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -0.01em; }
+  .topbar .sub { margin: 0; color: var(--muted); font-size: 14px; }
+  .hud { display: flex; gap: 10px; }
+  .hud-item {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 8px 14px; display: flex; flex-direction: column; min-width: 96px;
+  }
+  .hud-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .hud-item span:last-child { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  main { padding: 0 24px 32px; display: flex; flex-direction: column; gap: 22px; }
+  .section-title {
+    margin: 0 0 10px; font-size: 13px; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted); font-weight: 600;
+  }
+  .desk {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 14px; background: rgba(18, 26, 47, .5); border: 1px dashed var(--line);
+    border-radius: 18px; padding: 16px; min-height: 180px;
+  }
+  .drive-card {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line); border-radius: 16px; padding: 12px 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    cursor: pointer; transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    user-select: none; animation: pop .35s ease both;
+  }
+  .drive-card:hover, .drive-card:focus-visible {
+    transform: translateY(-4px); border-color: var(--accent);
+    box-shadow: 0 10px 24px rgba(56, 189, 248, .18); outline: none;
+  }
+  .drive-card .usb { width: 54px; height: 76px; display: block; }
+  .drive-card .label {
+    font-size: 12px; color: var(--muted); text-align: center;
+    line-height: 1.25; word-break: break-word;
+  }
+  @keyframes pop { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+  .boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .boxes { grid-template-columns: 1fr; } }
+  .box {
+    background: rgba(18, 26, 47, .5); border: 2px dashed var(--line);
+    border-radius: 18px; padding: 14px; min-height: 180px;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  .box-healthy { border-color: rgba(34, 197, 94, .5); }
+  .box-infected { border-color: rgba(244, 63, 94, .5); }
+  .box-head { font-weight: 700; font-size: 14px; letter-spacing: 0.02em; }
+  .box-healthy .box-head { color: var(--success); }
+  .box-infected .box-head { color: var(--danger); }
+  .box-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
+  .placed {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 8px 6px; display: flex; flex-direction: column; align-items: center;
+    gap: 4px; animation: drop .45s cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  .placed .usb { width: 34px; height: 48px; }
+  .placed .label { font-size: 10px; color: var(--muted); text-align: center; word-break: break-word; line-height: 1.2; }
+  @keyframes drop {
+    from { opacity: 0; transform: translateY(-14px) scale(.8); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(4, 8, 18, .72);
+    backdrop-filter: blur(4px); display: grid; place-items: center;
+    padding: 16px; z-index: 40; animation: fade .18s ease both;
+  }
+  .modal-overlay[hidden] { display: none; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    width: min(560px, 100%); max-height: 88vh; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+    box-shadow: 0 30px 70px rgba(0,0,0,.5); overflow: hidden;
+    animation: rise .25s cubic-bezier(.2,.9,.3,1.1) both;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(16px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 18px; border-bottom: 1px solid var(--line);
+  }
+  .modal-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .modal-title .usb { width: 34px; height: 48px; flex: none; }
+  .modal-name { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .modal-sub { font-size: 12px; color: var(--muted); }
+  .icon-btn {
+    background: transparent; border: 1px solid var(--line); color: var(--muted);
+    width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+    font-size: 15px; flex: none;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+  .modal-body { padding: 14px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  .file-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .file-row {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-bottom: 1px solid rgba(42, 53, 86, .5); font-size: 14px;
+  }
+  .file-row:last-child { border-bottom: none; }
+  .file-icon { width: 20px; text-align: center; flex: none; }
+  .file-name {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .file-size { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; flex: none; text-align: right; }
+  .file-row.shortcut .file-name { color: var(--warn); }
+  .file-row.exe .file-name { color: #fca5a5; }
+  .file-row.is-hidden {
+    background: rgba(245, 158, 11, .06); border-left: 3px solid rgba(245, 158, 11, .5);
+  }
+  .chip {
+    font-size: 10px; padding: 1px 7px; border-radius: 99px;
+    background: rgba(245, 158, 11, .18); color: var(--warn);
+    text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; flex: none;
+  }
+  .toggle-hidden {
+    align-self: flex-start; background: transparent; border: 1px dashed var(--line);
+    color: var(--muted); padding: 7px 12px; border-radius: 10px;
+    cursor: pointer; font-size: 13px;
+  }
+  .toggle-hidden:hover { color: var(--text); border-color: var(--accent); }
+  .hidden-note { font-size: 12px; color: var(--muted); padding: 2px 2px 0; }
+  .modal-foot {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    padding: 14px 18px; border-top: 1px solid var(--line);
+  }
+  .decision {
+    padding: 12px 10px; border-radius: 12px; border: 1px solid transparent;
+    font-weight: 700; font-size: 14px; cursor: pointer;
+    transition: transform .12s ease, filter .12s ease;
+  }
+  .decision:hover { transform: translateY(-2px); filter: brightness(1.08); }
+  .decision.healthy {
+    background: rgba(34, 197, 94, .15); border-color: rgba(34, 197, 94, .5); color: #86efac;
+  }
+  .decision.infected {
+    background: rgba(244, 63, 94, .15); border-color: rgba(244, 63, 94, .5); color: #fda4af;
+  }
+  .toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 120%);
+    max-width: min(520px, calc(100vw - 32px));
+    background: var(--panel); border: 1px solid var(--line); border-left-width: 5px;
+    border-radius: 14px; padding: 14px 18px; font-size: 14px; line-height: 1.45;
+    box-shadow: 0 20px 50px rgba(0,0,0,.5); z-index: 60;
+    transition: transform .35s cubic-bezier(.2,.9,.3,1.2), opacity .25s ease;
+    opacity: 0;
+  }
+  .toast.show { transform: translate(-50%, 0); opacity: 1; }
+  .toast.ok { border-left-color: var(--success); }
+  .toast.bad { border-left-color: var(--danger); }
+  .toast b { display: block; margin-bottom: 4px; }
+  .end-screen {
+    position: fixed; inset: 0; background: rgba(4, 8, 18, .8);
+    backdrop-filter: blur(6px); display: grid; place-items: center;
+    padding: 16px; z-index: 70;
+  }
+  .end-screen[hidden] { display: none; }
+  .end-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 20px;
+    padding: 28px; width: min(460px, 100%); text-align: center;
+    animation: rise .3s ease both;
+  }
+  .end-card h2 { margin: 0 0 8px; font-size: 22px; }
+  .end-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 18px 0; }
+  .end-stat {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px 6px;
+  }
+  .end-stat .n { font-size: 22px; font-weight: 800; }
+  .end-stat .t { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .end-stat.ok .n { color: var(--success); }
+  .end-stat.bad .n { color: var(--danger); }
+  .end-stat.score .n { color: var(--accent); }
+  .btn-primary {
+    background: linear-gradient(180deg, #38bdf8, #0ea5e9);
+    color: #06121f; border: none; padding: 12px 22px;
+    border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .footer-note {
+    padding: 0 24px 28px; color: var(--muted); font-size: 12px;
+    line-height: 1.5; max-width: 760px;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div>
+    <h1>USB Shortcut Virus</h1>
+    <p class="sub">Проверь 10 флешек и разложи их по коробкам. Кликни по флешке, чтобы открыть её содержимое.</p>
+  </div>
+  <div class="hud">
+    <div class="hud-item"><span class="hud-label">Счёт</span><span id="score">0</span></div>
+    <div class="hud-item"><span class="hud-label">Осталось</span><span id="remaining">10</span></div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2 class="section-title">Стол с флешками</h2>
+    <div class="desk" id="desk"></div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Коробки</h2>
+    <div class="boxes">
+      <div class="box box-healthy">
+        <div class="box-head">✅ Здоровые</div>
+        <div class="box-list" id="box-healthy"></div>
+      </div>
+      <div class="box box-infected">
+        <div class="box-head">🚨 Заражённые</div>
+        <div class="box-list" id="box-infected"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<p class="footer-note">
+  <b>Подсказка:</b> заражение не всегда бросается в глаза — на здоровой флешке тоже бывают скрытые системные файлы.
+  Включайте показ скрытых элементов и обращайте внимание на необычные ярлыки, папки-пустышки и исполняемые файлы с «системными» именами.
+</p>
+
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="end-screen" id="end-screen" hidden>
+  <div class="end-card">
+    <h2 id="end-title">Готово!</h2>
+    <p id="end-sub" style="color:var(--muted);margin:0;font-size:14px;"></p>
+    <div class="end-stats">
+      <div class="end-stat ok"><div class="n" id="end-correct">0</div><div class="t">Верно</div></div>
+      <div class="end-stat bad"><div class="n" id="end-wrong">0</div><div class="t">Ошибок</div></div>
+      <div class="end-stat score"><div class="n" id="end-score">0</div><div class="t">Счёт</div></div>
+    </div>
+    <button class="btn-primary" id="btn-restart">Играть снова</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ---------- Пул данных ---------- */
+  const LABELS = [
+    'KINGSTON', 'SANDISK', 'TRANSCEND', 'SAMSUNG', 'USB DISK',
+    'МОЯ ФЛЕШКА', 'работа', 'КУРСОВАЯ', 'NO NAME', 'FLASH',
+    'Verbatim', 'Toshiba', 'HP', 'Silicon Power', 'SmartBuy',
+    'ЛЕКЦИИ', 'диплом', 'ПРОЕКТ', 'фото', 'BACKUP',
+    'cruzer', 'My Passport', 'Информ', 'Учёба', 'Сессия'
+  ];
+  const VOLUMES = ['4 ГБ', '8 ГБ', '16 ГБ', '32 ГБ', '64 ГБ', '128 ГБ'];
+
+  const FOLDER_NAMES = [
+    'Диплом', 'Фотографии', 'Лекции', 'Курсовая', 'Проект', 'Музыка', 'Фильмы',
+    'Документы', 'Отчеты', 'Семейное', 'Работа', 'Архив', 'Резерв', 'Учеба',
+    'Универ', 'ИФиМ', 'Семестр 2', 'Материалы', 'Презентации', 'Лабы',
+    'Скриншоты', 'Загрузки', 'Разное', 'Видео', 'Книги'
+  ];
+  const FILE_NAMES = [
+    'резюме.pdf', 'notes.txt', 'отчет.xlsx', 'курсовая.docx', 'инструкция.pdf',
+    'data.csv', 'readme.txt', 'playlist.m3u', 'договор.pdf', 'смета.xlsx',
+    'презентация.pptx', 'лекция1.doc', 'конспект.txt', 'список.txt', 'план.docx',
+    'фото1.jpg', 'видео.mp4', 'музыка.mp3', 'схема.png', 'график.xlsx',
+    'реферат.docx', 'методичка.pdf', 'задание.txt', 'ТЗ.pdf', 'проект.psd',
+    'backup.zip', 'данные.xls', 'письмо.msg', 'скан.jpg', 'анкета.docx'
+  ];
+  const EXE_NAMES = [
+    'portable_app.exe', 'setup.exe', 'installer.exe', 'launcher.exe',
+    'player.exe', 'viewer.exe', 'editor.exe', 'archiver.exe',
+    'notepad++.exe', 'portable-chrome.exe', '7zG.exe', 'putty.exe'
+  ];
+  const BENIGN_HIDDEN = [
+    { type: 'file',   name: 'desktop.ini', size: '1 КБ' },
+    { type: 'folder', name: '.Trashes', size: '0 Б' },
+    { type: 'folder', name: 'System Volume Information', size: '0 Б' },
+    { type: 'folder', name: '.Spotlight-V100', size: '0 Б' },
+    { type: 'file',   name: 'thumbs.db', size: '280 КБ' },
+    { type: 'file',   name: '.DS_Store', size: '6 КБ' },
+    { type: 'folder', name: '$RECYCLE.BIN', size: '0 Б' }
+  ];
+  const MALWARE_NAME = 'DrvSvcsrMgr.exe';
+  const MALWARE_SIZE = '82 КБ';
+  const MALWARE_DATE = '24.02.2026 11:30';
+  const COLORS = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#06b6d4','#6366f1','#a855f7','#0ea5e9','#14b8a6','#f97316','#ef4444','#84cc16'];
+
+  /* ---------- Утилиты ---------- */
+  function rand(n) { return Math.floor(Math.random() * n); }
+  function randInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
+  function pick(arr) { return arr[rand(arr.length)]; }
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function pickN(arr, n) {
+    const copy = arr.slice();
+    const out = [];
+    n = Math.min(n, copy.length);
+    for (let i = 0; i < n; i++) out.push(copy.splice(rand(copy.length), 1)[0]);
+    return out;
+  }
+  function randomSizeGbMb() { return `${randInt(100, 8000)} ${pick(['МБ','МБ','ГБ'])}`; }
+  function randomSizeKbMb() { return `${randInt(1, 900)} ${pick(['КБ','КБ','МБ'])}`; }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function usbIcon(color) {
+    return `<svg class="usb" viewBox="0 0 100 140" aria-hidden="true">
+      <rect x="30" y="0" width="40" height="28" rx="4" fill="#cbd5e1"/>
+      <rect x="38" y="6" width="10" height="6" fill="#64748b"/>
+      <rect x="52" y="6" width="10" height="6" fill="#64748b"/>
+      <rect x="38" y="16" width="10" height="6" fill="#64748b"/>
+      <rect x="52" y="16" width="10" height="6" fill="#64748b"/>
+      <rect x="18" y="26" width="64" height="110" rx="10" fill="${color}"/>
+      <rect x="18" y="26" width="64" height="34" rx="10" fill="#ffffff" opacity="0.15"/>
+      <circle cx="50" cy="102" r="7" fill="#000000" opacity="0.25"/>
+    </svg>`;
+  }
+
+  /* ---------- Генерация одной флешки ---------- */
+  function makeHealthy(label, volume) {
+    const files = [];
+    const hidden = [];
+
+    const numFolders = randInt(1, 3);
+    pickN(FOLDER_NAMES, numFolders).forEach(name => {
+      files.push({ type: 'folder', name, size: randomSizeGbMb() });
+    });
+
+    const numFiles = randInt(1, 4);
+    pickN(FILE_NAMES, numFiles).forEach(name => {
+      files.push({ type: 'file', name, size: randomSizeKbMb() });
+    });
+
+    const hasExe = Math.random() < 0.3;
+    if (hasExe) {
+      files.push({
+        type: 'exe',
+        name: pick(EXE_NAMES),
+        size: `${(Math.random() * 12 + 0.5).toFixed(1)} МБ`
+      });
+    }
+
+    if (Math.random() < 0.55) {
+      pickN(BENIGN_HIDDEN, randInt(1, 2)).forEach(h => {
+        hidden.push({ ...h });
+      });
+    }
+
+    shuffle(files);
+
+    const parts = ['Обычные файлы и папки на месте.'];
+    if (hasExe) parts.push('Файл .exe — портативная программа, не вирус.');
+    if (hidden.length) parts.push('Скрытые элементы есть (desktop.ini и т.п.), но это нормально — ' + MALWARE_NAME + ' отсутствует.');
+    else parts.push('Скрытых файлов нет.');
+    parts.push('Флешка здорова.');
+
+    return {
+      label, volume, infected: false,
+      files, hidden,
+      explain: parts.join(' ')
+    };
+  }
+
+  function makeInfected(label, volume) {
+    const files = [];
+    const hidden = [];
+
+    const patterns = [
+      { shortcut: true,  services: true,  autorun: false },
+      { shortcut: true,  services: true,  autorun: false },
+      { shortcut: true,  services: true,  autorun: true  },
+      { shortcut: true,  services: false, autorun: false },
+      { shortcut: true,  services: false, autorun: true  },
+      { shortcut: false, services: true,  autorun: false },
+      { shortcut: false, services: true,  autorun: true  }
+    ];
+    const pattern = pick(patterns);
+
+    if (pattern.shortcut) {
+      const shortVol = volume.replace(' ГБ', 'GB');
+      files.push({ type: 'shortcut', name: `${label} (${shortVol})`, size: volume });
+    }
+    if (pattern.services) {
+      files.push({ type: 'folder', name: 'WindowsServices', size: '0 Б' });
+    }
+    if (Math.random() < 0.4) {
+      files.push({ type: 'folder', name: pick(FOLDER_NAMES), size: `${randInt(100, 4000)} МБ` });
+    }
+
+    const hiddenFolderName = Math.random() < 0.25 ? ' ' : label;
+    hidden.push({ type: 'folder', name: hiddenFolderName, size: `${randInt(500, 15000)} МБ` });
+
+    hidden.push({ type: 'exe', name: MALWARE_NAME, size: MALWARE_SIZE, date: MALWARE_DATE });
+
+    if (pattern.autorun) {
+      hidden.push({ type: 'file', name: 'autorun.inf', size: '1 КБ' });
+    }
+    if (Math.random() < 0.4) {
+      hidden.push({ ...pick(BENIGN_HIDDEN) });
+    }
+
+    shuffle(files);
+
+    const signals = [];
+    if (pattern.shortcut) signals.push('ярлык с объёмом всего диска');
+    if (pattern.services) signals.push('пустая папка WindowsServices');
+    if (pattern.autorun)  signals.push('autorun.inf');
+    if (hiddenFolderName === ' ') signals.push('скрытая папка без имени');
+    const explain = `Признаки: ${signals.join(', ')}, скрытый ${MALWARE_NAME} (82 КБ, дата 24.02.2026). Флешка заражена.`;
+
+    return { label, volume, infected: true, files, hidden, explain };
+  }
+
+  function generateDrives() {
+    const total = 10;
+    const infectedCount = randInt(4, 6);
+    const infectedSet = new Set(pickN([...Array(total).keys()], infectedCount));
+
+    const drives = [];
+    for (let i = 0; i < total; i++) {
+      const label = pick(LABELS);
+      const volume = pick(VOLUMES);
+      drives.push(infectedSet.has(i) ? makeInfected(label, volume) : makeHealthy(label, volume));
+    }
+
+    return shuffle(drives).map((d, i) => ({
+      ...d,
+      id: i + 1,
+      color: COLORS[i % COLORS.length],
+      placed: false,
+      placedIn: null
+    }));
+  }
+
+  /* ---------- Состояние ---------- */
+  const state = {
+    drives: [],
+    score: 0,
+    correct: 0,
+    wrong: 0,
+    currentId: null,
+    showHidden: false,
+    placed: { healthy: [], infected: [] }
+  };
+
+  /* ---------- DOM ---------- */
+  const deskEl = document.getElementById('desk');
+  const boxHealthyEl = document.getElementById('box-healthy');
+  const boxInfectedEl = document.getElementById('box-infected');
+  const scoreEl = document.getElementById('score');
+  const remainingEl = document.getElementById('remaining');
+  const overlay = document.getElementById('modal-overlay');
+  const modalEl = document.getElementById('modal');
+  const toastEl = document.getElementById('toast');
+  const endScreen = document.getElementById('end-screen');
+
+  /* ---------- Рендер ---------- */
+  function renderDesk() {
+    const pending = state.drives.filter(d => !d.placed);
+    deskEl.innerHTML = '';
+    if (!pending.length) {
+      deskEl.innerHTML = '<div style="color:var(--muted);padding:20px;grid-column:1/-1;text-align:center;">Все флешки разложены</div>';
+      return;
+    }
+    pending.forEach(d => {
+      const card = document.createElement('div');
+      card.className = 'drive-card';
+      card.tabIndex = 0;
+      card.innerHTML = `${usbIcon(d.color)}<div class="label">${escapeHtml(d.label)}</div>`;
+      card.addEventListener('click', () => openModal(d.id));
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(d.id); }
+      });
+      deskEl.appendChild(card);
+    });
+  }
+
+  function renderBoxes() {
+    const renderBox = (el, list) => {
+      el.innerHTML = list.map(d => `
+        <div class="placed">
+          ${usbIcon(d.color)}
+          <div class="label">${escapeHtml(d.label)}</div>
+        </div>
+      `).join('');
+    };
+    renderBox(boxHealthyEl, state.placed.healthy);
+    renderBox(boxInfectedEl, state.placed.infected);
+  }
+
+  function updateHud() {
+    scoreEl.textContent = state.score;
+    remainingEl.textContent = state.drives.filter(d => !d.placed).length;
+  }
+
+  function renderFileRow(f) {
+    let icon = '📄', cls = 'file';
+    if (f.type === 'folder')        { icon = '📁'; cls = 'folder'; }
+    else if (f.type === 'shortcut') { icon = '🔗'; cls = 'shortcut'; }
+    else if (f.type === 'exe')      { icon = '⚙️'; cls = 'exe'; }
+
+    const chip = f.isHidden ? '<span class="chip">скрытый</span>' : '';
+    const nameHtml = f.name.trim() === ''
+      ? '<i style="color:var(--muted)">(без имени)</i>'
+      : escapeHtml(f.name);
+    const sizeStr = f.size ? escapeHtml(f.size) : '';
+    const dateStr = f.date
+      ? ` <span style="opacity:.65;font-size:10px;">${escapeHtml(f.date)}</span>`
+      : '';
+
+    return `<div class="file-row ${cls} ${f.isHidden ? 'is-hidden' : ''}">
+      <span class="file-icon">${icon}</span>
+      <span class="file-name">${nameHtml}${chip}</span>
+      <span class="file-size">${sizeStr}${dateStr}</span>
+    </div>`;
+  }
+
+  function renderModal(drive) {
+    const files = drive.files || [];
+    const hidden = drive.hidden || [];
+    const all = state.showHidden
+      ? files.concat(hidden.map(f => ({ ...f, isHidden: true })))
+      : files;
+
+    const rows = all.length
+      ? all.map(renderFileRow).join('')
+      : '<div style="padding:14px;color:var(--muted);text-align:center;">Пусто</div>';
+
+    const hiddenNote = state.showHidden
+      ? (hidden.length
+          ? `<div class="hidden-note">Скрытых элементов: ${hidden.length}</div>`
+          : `<div class="hidden-note">Скрытых элементов не обнаружено</div>`)
+      : '';
+
+    modalEl.innerHTML = `
+      <div class="modal-head">
+        <div class="modal-title">
+          ${usbIcon(drive.color)}
+          <div style="min-width:0">
+            <div class="modal-name">${escapeHtml(drive.label)}</div>
+            <div class="modal-sub">Съёмный диск · ${drive.volume}</div>
+          </div>
+        </div>
+        <button class="icon-btn" data-action="close" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="file-list">${rows}</div>
+        <button class="toggle-hidden" data-action="toggle">
+          ${state.showHidden ? '🙈 Скрыть скрытые элементы' : '👁 Показать скрытые элементы'}
+        </button>
+        ${hiddenNote}
+      </div>
+      <div class="modal-foot">
+        <button class="decision healthy" data-action="place" data-box="healthy">✅ Здоровая</button>
+        <button class="decision infected" data-action="place" data-box="infected">🚨 Заражённая</button>
+      </div>
+    `;
+  }
+
+  function openModal(id) {
+    const drive = state.drives.find(d => d.id === id);
+    if (!drive || drive.placed) return;
+    state.currentId = id;
+    state.showHidden = false;
+    renderModal(drive);
+    overlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    overlay.hidden = true;
+    document.body.style.overflow = '';
+    state.currentId = null;
+    state.showHidden = false;
+  }
+
+  /* ---------- События ---------- */
+  modalEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'close') closeModal();
+    if (action === 'toggle') {
+      state.showHidden = !state.showHidden;
+      const drive = state.drives.find(d => d.id === state.currentId);
+      if (drive) renderModal(drive);
+    }
+    if (action === 'place') placeDrive(state.currentId, btn.dataset.box);
+  });
+
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !overlay.hidden) closeModal();
+  });
+
+  /* ---------- Игровая логика ---------- */
+  let toastTimer = null;
+
+  function placeDrive(id, box) {
+    const drive = state.drives.find(d => d.id === id);
+    if (!drive || drive.placed) return;
+
+    const correct = (box === 'infected') === drive.infected;
+    drive.placed = true;
+    drive.placedIn = box;
+    state.placed[box].push(drive);
+
+    if (correct) { state.score += 10; state.correct += 1; }
+    else         { state.score = Math.max(0, state.score - 5); state.wrong += 1; }
+
+    closeModal();
+    renderDesk();
+    renderBoxes();
+    updateHud();
+    showToast(correct, drive);
+
+    if (state.drives.every(d => d.placed)) setTimeout(showEnd, 950);
+  }
+
+  function showToast(correct, drive) {
+    clearTimeout(toastTimer);
+    toastEl.className = 'toast ' + (correct ? 'ok' : 'bad');
+    toastEl.innerHTML = `<b>${correct ? 'Верно! +10' : 'Ошибка. −5'}</b>${escapeHtml(drive.explain)}`;
+    void toastEl.offsetWidth;
+    toastEl.classList.add('show');
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 4500);
+  }
+
+  function showEnd() {
+    document.getElementById('end-correct').textContent = state.correct;
+    document.getElementById('end-wrong').textContent = state.wrong;
+    document.getElementById('end-score').textContent = state.score;
+
+    const title = document.getElementById('end-title');
+    const sub = document.getElementById('end-sub');
+    if (state.wrong === 0) {
+      title.textContent = 'Идеально!';
+      sub.textContent = 'Все флешки разложены верно. USB-червя вы отличите с первого взгляда.';
+    } else if (state.wrong <= 2) {
+      title.textContent = 'Хороший результат';
+      sub.textContent = 'Пара ошибок — не страшно. Главное правило: ярлык с объёмом диска — это не флешка.';
+    } else {
+      title.textContent = 'Стоит потренироваться';
+      sub.textContent = 'Не забывайте включать показ скрытых элементов и искать DrvSvcsrMgr.exe.';
+    }
+    endScreen.hidden = false;
+  }
+
+  document.getElementById('btn-restart').addEventListener('click', () => {
+    endScreen.hidden = true;
+    startGame();
+  });
+
+  /* ---------- Старт ---------- */
+  function startGame() {
+    state.drives = generateDrives();
+    state.score = 0;
+    state.correct = 0;
+    state.wrong = 0;
+    state.placed = { healthy: [], infected: [] };
+    state.currentId = null;
+    state.showHidden = false;
+
+    toastEl.classList.remove('show');
+    renderDesk();
+    renderBoxes();
+    updateHud();
+  }
+
+  startGame();
+})();
+</script>
+</body>
+</html>
